@@ -232,29 +232,6 @@ impl ScreenAgent {
     }
 }
 
-#[derive(Debug, Parser)]
-pub struct Args {
-    #[arg(short = 'c', long = "config", help = "JSON config string")]
-    config: Option<String>,
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    env_logger::init();
-    // env_logger::from_env(env_logger::Env::default().default_filter_or("debug")).init();
-
-    let args = Args::parse();
-    let config = args.config.as_deref().unwrap_or_default().into();
-    println!("CONFIG {}", serde_json::to_string(&config)?);
-
-    log::info!("Starting {}.", AGENT_NAME);
-
-    let mut agent = ScreenAgent::new(config);
-    agent.run().await?;
-
-    Ok(())
-}
-
 fn parse_line(line: &str) -> Option<(&str, &str)> {
     if line.is_empty() {
         return None;
@@ -277,22 +254,6 @@ fn rgba_to_base64_png(img: &RgbaImage) -> Result<String> {
     img.write_to(&mut buffer, ImageFormat::Png)?;
     Ok(base64::engine::general_purpose::STANDARD.encode(buffer.into_inner()))
 }
-
-// fn count_different_pixels(img1: &RgbaImage, img2: &RgbaImage) -> u32 {
-//     img1.pixels()
-//         .zip(img2.pixels())
-//         .filter(|(p1, p2)| p1 != p2)
-//         .count() as u32
-// }
-
-// fn get_difference_ratio(img1: &RgbaImage, img2: &RgbaImage) -> f32 {
-//     if img1.dimensions() != img2.dimensions() {
-//         return 1.0;
-//     }
-//     let total_pixels = img1.width() * img1.height();
-//     let different_pixels = count_different_pixels(img1, img2);
-//     different_pixels as f32 / total_pixels as f32
-// }
 
 fn fast_downsample(img: &RgbaImage, scale: u32) -> GrayImage {
     let new_width = img.width() / scale;
@@ -336,4 +297,26 @@ fn get_difference_ratio2(img1: &GrayImage, img2: &GrayImage) -> f32 {
         })
         .count();
     different_pixels as f32 / (img1.width() * img1.height()) as f32
+}
+
+#[derive(Debug, Parser)]
+pub struct Args {
+    #[arg(short = 'c', long = "config", help = "JSON config string")]
+    config: Option<String>,
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    env_logger::init();
+
+    let args = Args::parse();
+    let config = args.config.as_deref().unwrap_or_default().into();
+    println!("CONFIG {}", serde_json::to_string(&config)?);
+
+    log::info!("Starting {}.", AGENT_NAME);
+
+    let mut agent = ScreenAgent::new(config);
+    agent.run().await?;
+
+    Ok(())
 }
