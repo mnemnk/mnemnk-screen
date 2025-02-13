@@ -1,6 +1,6 @@
 # mnemnk-screen
 
-`mnemnk-screen` is a [Mnemnk](https://github.com/mnemnk/mnemnk-app/) agent, which reports your application usage to Mnemnk.
+`mnemnk-screen` is a [Mnemnk](https://github.com/mnemnk/mnemnk-app/) agent, which captures screen.
 
 ## Installation
 
@@ -19,7 +19,6 @@ If it is not enabled, please edit Settings in Mnemnk as follows
     "screen": {
       "enabled": true
     },
-    ...
 ```
 
 Save the settings and restart Mnemnk.
