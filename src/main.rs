@@ -6,6 +6,7 @@ use base64::{self, Engine as _};
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use image::{GrayImage, ImageFormat, RgbaImage};
+use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
 use tokio::io::{stdin, AsyncBufReadExt, BufReader};
 use tokio::signal::ctrl_c;
@@ -15,12 +16,25 @@ use xcap::Monitor;
 const AGENT_NAME: &str = "mnemnk-screen";
 const KIND: &str = "screen";
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+/// # Screen
+/// Capture screen images
+#[derive(Debug, serde::Deserialize, serde::Serialize, JsonSchema)]
 struct AgentConfig {
+    /// # Interval
+    /// Interval in seconds
     interval: u64,
+
+    /// # Almost Black Threshold
+    /// Each RGB value is considered as black if it is less than this value
     almost_black_threshold: u64,
+
+    /// # Non Blank Threshold
+    /// Number of non-blank pixels to consider the screen as non-blank
     non_blank_threshold: u64,
-    same_screen_threshold: f32,
+
+    /// # Same Screen Threshold
+    /// Ratio of different pixels to consider the screen as the same
+    same_screen_ratio: f32,
 }
 
 impl Default for AgentConfig {
@@ -29,7 +43,7 @@ impl Default for AgentConfig {
             interval: 60,
             almost_black_threshold: 20,
             non_blank_threshold: 400,
-            same_screen_threshold: 0.01,
+            same_screen_ratio: 0.01,
         }
     }
 }
@@ -48,7 +62,7 @@ impl From<&str> for AgentConfig {
                 config.non_blank_threshold = non_blank_threshold.as_u64().unwrap();
             }
             if let Some(same_screen_threshold) = c.get("same_screen_threshold") {
-                config.same_screen_threshold = same_screen_threshold.as_f64().unwrap() as f32;
+                config.same_screen_ratio = same_screen_threshold.as_f64().unwrap() as f32;
             }
         }
         config
@@ -201,13 +215,13 @@ impl ScreenAgent {
     fn is_blank(&self, image: &RgbaImage) -> bool {
         let mut count = 0;
         for pixel in image.pixels().step_by(120) {
-            if pixel.0[0] > self.config.almost_black_threshold as u8
-                || pixel.0[1] > self.config.almost_black_threshold as u8
-                || pixel.0[2] > self.config.almost_black_threshold as u8
+            if pixel.0[0] >= self.config.almost_black_threshold as u8
+                || pixel.0[1] >= self.config.almost_black_threshold as u8
+                || pixel.0[2] >= self.config.almost_black_threshold as u8
             {
                 count += 1;
             }
-            if count > self.config.non_blank_threshold {
+            if count >= self.config.non_blank_threshold {
                 return false;
             }
         }
@@ -219,7 +233,7 @@ impl ScreenAgent {
         if let Some(last_image) = &self.last_image {
             let diff_ratio = get_difference_ratio2(&gray_image, last_image);
             log::debug!("diff_ratio: {}", diff_ratio);
-            if diff_ratio <= self.config.same_screen_threshold {
+            if diff_ratio < self.config.same_screen_ratio {
                 true
             } else {
                 self.last_image = Some(gray_image);
@@ -311,6 +325,10 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
     let config = args.config.as_deref().unwrap_or_default().into();
+
+    let schema = schema_for!(AgentConfig);
+    println!("CONFIG_SCHEMA {}", serde_json::to_string(&schema)?);
+
     println!("CONFIG {}", serde_json::to_string(&config)?);
 
     log::info!("Starting {}.", AGENT_NAME);
