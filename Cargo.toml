@@ -1,6 +1,6 @@
 [package]
 name = "mnemnk-screen"
-version = "0.2.0"
+version = "0.3.0"
 description = "Mnemnk agent for capturing screen"
 authors = ["Akira Ishino <akira@lumilab.jp>"]
 edition = "2021"
