@@ -148,7 +148,7 @@ impl ScreenAgent {
                 image_id: self.last_image_id.clone().unwrap(),
             };
             let screen_event_json = serde_json::to_string(&screen_event)?;
-            println!("STORE {} {}", KIND, screen_event_json);
+            println!(".STORE {} {}", KIND, screen_event_json);
 
             return Ok(());
         }
@@ -167,7 +167,7 @@ impl ScreenAgent {
             image_id: image_id.clone(),
         };
         let screen_event_json = serde_json::to_string(&screen_event)?;
-        println!("STORE {} {}", KIND, screen_event_json);
+        println!(".STORE {} {}", KIND, screen_event_json);
 
         self.last_image_id = Some(image_id);
 
@@ -200,8 +200,8 @@ impl ScreenAgent {
         log::debug!("process_line: {}", line);
         if let Some((cmd, _args)) = parse_line(line) {
             match cmd {
-                "QUIT" => {
-                    log::info!("QUIT {}.", AGENT_NAME);
+                ".QUIT" => {
+                    log::info!("Quit {}.", AGENT_NAME);
                     std::process::exit(0);
                 }
                 _ => {
@@ -327,9 +327,9 @@ async fn main() -> Result<()> {
     let config = args.config.as_deref().unwrap_or_default().into();
 
     let schema = schema_for!(AgentConfig);
-    println!("CONFIG_SCHEMA {}", serde_json::to_string(&schema)?);
+    println!(".CONFIG_SCHEMA {}", serde_json::to_string(&schema)?);
 
-    println!("CONFIG {}", serde_json::to_string(&config)?);
+    println!(".CONFIG {}", serde_json::to_string(&config)?);
 
     log::info!("Starting {}.", AGENT_NAME);
 
