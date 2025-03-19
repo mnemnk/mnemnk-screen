@@ -6,7 +6,6 @@ use base64::{self, Engine as _};
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use image::{GrayImage, ImageFormat, RgbaImage};
-use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
 use tokio::io::{stdin, AsyncBufReadExt, BufReader};
 use tokio::signal::ctrl_c;
@@ -16,23 +15,17 @@ use xcap::Monitor;
 const AGENT_NAME: &str = "mnemnk-screen";
 const KIND: &str = "screen";
 
-/// # Screen
-/// Capture screen images
-#[derive(Debug, serde::Deserialize, serde::Serialize, JsonSchema)]
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct AgentConfig {
-    /// # Interval
     /// Interval in seconds
     interval: u64,
 
-    /// # Almost Black Threshold
     /// Each RGB value is considered as black if it is less than this value
     almost_black_threshold: u64,
 
-    /// # Non Blank Threshold
     /// Number of non-blank pixels to consider the screen as non-blank
     non_blank_threshold: u64,
 
-    /// # Same Screen Threshold
     /// Ratio of different pixels to consider the screen as the same
     same_screen_ratio: f32,
 }
@@ -105,6 +98,7 @@ impl ScreenAgent {
 
     async fn run(&mut self) -> Result<()> {
         let mut interval = time::interval(time::Duration::from_secs(self.config.interval));
+        let mut last_interval_period = self.config.interval;
 
         let mut reader = BufReader::new(stdin());
         let mut line = String::new();
@@ -113,6 +107,10 @@ impl ScreenAgent {
             tokio::select! {
                 _ = interval.tick() => {
                     self.execute_task().await.unwrap_or_else(|e| log::error!("Error: {}", e));
+                    if last_interval_period != self.config.interval {
+                        interval = time::interval(time::Duration::from_secs(self.config.interval));
+                        last_interval_period = self.config.interval;
+                    }
                 }
                 _ = reader.read_line(&mut line) => {
                     self.process_line(&line).await.unwrap_or_else(|e| log::error!("Error: {}", e));
@@ -148,7 +146,7 @@ impl ScreenAgent {
                 image_id: self.last_image_id.clone().unwrap(),
             };
             let screen_event_json = serde_json::to_string(&screen_event)?;
-            println!(".STORE {} {}", KIND, screen_event_json);
+            println!(".OUT {} {}", KIND, screen_event_json);
 
             return Ok(());
         }
@@ -167,7 +165,7 @@ impl ScreenAgent {
             image_id: image_id.clone(),
         };
         let screen_event_json = serde_json::to_string(&screen_event)?;
-        println!(".STORE {} {}", KIND, screen_event_json);
+        println!(".OUT {} {}", KIND, screen_event_json);
 
         self.last_image_id = Some(image_id);
 
@@ -196,10 +194,15 @@ impl ScreenAgent {
         Ok(None)
     }
 
-    async fn process_line(&self, line: &str) -> Result<()> {
+    async fn process_line(&mut self, line: &str) -> Result<()> {
         log::debug!("process_line: {}", line);
-        if let Some((cmd, _args)) = parse_line(line) {
+        if let Some((cmd, args)) = parse_line(line) {
             match cmd {
+                ".CONFIG" => {
+                    let config = AgentConfig::from(args);
+                    log::info!("Update config: {:?}", config);
+                    self.config = config;
+                }
                 ".QUIT" => {
                     log::info!("Quit {}.", AGENT_NAME);
                     std::process::exit(0);
@@ -325,11 +328,6 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
     let config = args.config.as_deref().unwrap_or_default().into();
-
-    let schema = schema_for!(AgentConfig);
-    println!(".CONFIG_SCHEMA {}", serde_json::to_string(&schema)?);
-
-    println!(".CONFIG {}", serde_json::to_string(&config)?);
 
     log::info!("Starting {}.", AGENT_NAME);
 
